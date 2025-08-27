@@ -1,48 +1,77 @@
 const chatBox = document.getElementById("chatBox");
 const userInput = document.getElementById("userInput");
 
-// --- Predefined replies for real-life feel ---
-const replies = [
-  { keywords: ["hello", "hi", "hey"], response: "Hey 👋! How’s your day going?" },
-  { keywords: ["good", "fine", "great"], response: "Nice to hear that 😊. Got any plans today?" },
-  { keywords: ["not good", "sad", "tired"], response: "Sorry to hear that 😔. Want to talk about it?" },
-  { keywords: ["weather"], response: "Looks like a good day outside 🌤️. Do you like sunny or rainy days?" },
-  { keywords: ["food", "eat", "hungry"], response: "I could go for a pizza 🍕 right now. What’s your favorite food?" },
-  { keywords: ["bye", "goodbye", "see you"], response: "Take care 👋! Catch you later." },
-];
-
 function addMessage(text, sender) {
   const message = document.createElement("div");
   message.classList.add("message", sender);
   message.innerText = text;
   chatBox.appendChild(message);
-  chatBox.scrollTop = chatBox.scrollHeight; // auto scroll
+  chatBox.scrollTop = chatBox.scrollHeight;
 }
 
 function sendMessage() {
   const text = userInput.value.trim();
   if (text === "") return;
-  
   addMessage(text, "user");
   userInput.value = "";
-
-  // Fake bot response after delay
   setTimeout(() => {
     addMessage("🤖 " + generateReply(text), "bot");
-  }, 800);
+  }, 600);
 }
 
 function generateReply(input) {
   input = input.toLowerCase();
-  for (let rule of replies) {
-    if (rule.keywords.some(word => input.includes(word))) {
-      return rule.response;
-    }
-  }
-  return "That’s interesting 🤔, tell me more!";
+  if (input.includes("hello")) return "Hello! 👋 Ready for a video chat?";
+  if (input.includes("how are you")) return "I’m doing great 😄 thanks for asking!";
+  if (input.includes("bye")) return "Goodbye 👋 Stay safe!";
+  return "Interesting 🤔, tell me more!";
 }
 
-// Enter key support
 userInput.addEventListener("keypress", (e) => {
   if (e.key === "Enter") sendMessage();
 });
+
+/* ======== VIDEO CHAT (WebRTC demo self-call) ======== */
+const startCallBtn = document.getElementById("startCall");
+const localVideo = document.getElementById("localVideo");
+const remoteVideo = document.getElementById("remoteVideo");
+
+let localStream, peerConn;
+
+startCallBtn.addEventListener("click", async () => {
+  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  localVideo.srcObject = localStream;
+
+  peerConn = new RTCPeerConnection();
+  localStream.getTracks().forEach(track => peerConn.addTrack(track, localStream));
+
+  peerConn.ontrack = (event) => {
+    remoteVideo.srcObject = event.streams[0];
+  };
+
+  // Local description
+  const offer = await peerConn.createOffer();
+  await peerConn.setLocalDescription(offer);
+
+  // Simulate signaling (loopback for demo)
+  const answer = await fakeSignalExchange(offer);
+  await peerConn.setRemoteDescription(answer);
+});
+
+// Fake signaling (local loopback)
+async function fakeSignalExchange(offer) {
+  const peer2 = new RTCPeerConnection();
+  let remoteStream = new MediaStream();
+  peer2.ontrack = (event) => {
+    remoteVideo.srcObject = event.streams[0];
+  };
+
+  localStream.getTracks().forEach(track => peer2.addTrack(track, localStream));
+
+  await peer2.setRemoteDescription(offer);
+  const answer = await peer2.createAnswer();
+  await peer2.setLocalDescription(answer);
+
+  return answer;
+}
+
